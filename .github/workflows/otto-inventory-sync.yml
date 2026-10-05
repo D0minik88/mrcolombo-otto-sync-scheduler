@@ -1,0 +1,48 @@
+name: OTTO inventory sync
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: mrcolombo-otto-inventory-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Synchronize Shopify stock to OTTO
+        env:
+          OAI_SITES_AUTHORIZATION: ${{ secrets.OAI_SITES_AUTHORIZATION }}
+          SYNC_API_KEY: ${{ secrets.SYNC_API_KEY }}
+        run: |
+          set -euo pipefail
+          response="$(curl --silent --show-error --fail-with-body \
+            --request POST \
+            --header "OAI-Sites-Authorization: Bearer ${OAI_SITES_AUTHORIZATION}" \
+            --header "x-sync-key: ${SYNC_API_KEY}" \
+            --header "content-type: application/json" \
+            --data '{}' \
+            'https://mrcolombo-otto-sync.d0minik88.chatgpt.site/api/sync')"
+
+          printf '%s\n' "$response" | jq -e '
+            .status == "SUCCEEDED"
+            and .counters.catalog == 68
+            and .counters.resolved == 68
+            and .counters.quarantined == 0
+            and .counters.ottoSkusMissing == 0
+            and .counters.ottoReadbackMismatches == 0
+            and .counters.deliveryMappingsMissingAfter == 0
+            and .counters.activeSkus == 68
+            and .counters.marketplaceRows == 68
+            and .counters.unresolvedLedgerAfter == 0
+          ' >/dev/null
+
+          printf 'OTTO sync succeeded: %s\n' \
+            "$(printf '%s\n' "$response" | jq -c '{runId, counters}')"
