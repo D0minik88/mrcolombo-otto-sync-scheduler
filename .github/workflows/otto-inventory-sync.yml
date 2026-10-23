@@ -15,34 +15,13 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 5
     steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
       - name: Synchronize Shopify stock to OTTO
         env:
           OAI_SITES_AUTHORIZATION: ${{ secrets.OAI_SITES_AUTHORIZATION }}
           SYNC_API_KEY: ${{ secrets.SYNC_API_KEY }}
-        run: |
-          set -euo pipefail
-          response="$(curl --silent --show-error --fail-with-body \
-            --request POST \
-            --header "OAI-Sites-Authorization: Bearer ${OAI_SITES_AUTHORIZATION}" \
-            --header "x-sync-key: ${SYNC_API_KEY}" \
-            --header "content-type: application/json" \
-            --data '{}' \
-            'https://mrcolombo-otto-sync.d0minik88.chatgpt.site/api/sync')"
-
-          printf '%s\n' "$response" | jq -e '
-            .status == "SUCCEEDED"
-            and .counters.catalog == 68
-            and .counters.resolved == 68
-            and .counters.quarantined == 0
-            and .counters.ottoSkusMissing == 0
-            and .counters.ottoReadbackMismatches == 0
-            and .counters.deliveryMappingsMissingAfter == 0
-            and .counters.activeSkus == 68
-            and .counters.marketplaceRows == 68
-            and .counters.unresolvedLedgerAfter == 0
-          ' >/dev/null
-
-          printf 'OTTO sync succeeded: %s\n' \
-            "$(printf '%s\n' "$response" | jq -c '{runId, counters}')"
+        run: python3 scripts/sync.py
